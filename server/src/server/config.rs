@@ -4,142 +4,33 @@
 // File description:
 // Config
 //
+use clap::Parser;
 
-/// Hard caps so a single CLI line can't ask the server to allocate absurd
-/// amounts of state. Generous, but bounded.
-const MIN_DIMENSION: usize = 5;
-const MAX_TEAMS: usize = 100;
-const MAX_CLIENTS_PER_TEAM: usize = 1000;
-
-#[derive(Debug)]
+#[derive(Parser, Debug)]
+#[command(version, about = "Zappy Server Configuration")]
 pub struct Config {
     // Define Port Number
+    #[arg(short, long, default_value = "4242", help = "Port number to listen on")]
     pub port: u16,
-    // Define Max Clients
+    // Define Max Clients 
+    #[arg(short, long, default_value = "10", help = "Number of authorized clients per team")]
     pub clients: usize,
     // Define Teams Names
+    #[arg(required = true, short, long, num_args = 1.., default_value = "GRAPHICAL", help = "Names of the teams (one or more)")]
     pub names: Vec<String>,
-    // Define Time Unit
+    // Define Time Unit 
+    #[arg(short, long, default_value = "1000", help = "Server frequency (time unit in ms)")]
     pub frequency: u32,
-    // Define World width
+    // Define World width 
+    #[arg(short, long, default_value = "10", help = "World width in tiles")]
     pub x: usize,
-    // Define World height
+    // Define World height 
+    #[arg(short, long, default_value = "10", help = "World height in tiles")]
     pub y: usize,
 }
 
 impl Config {
-    fn default() -> Self {
-        Config {
-            port: 4242,
-            clients: 10,
-            names: vec!["GRAPHICAL".to_string()],
-            frequency: 100,
-            x: 10,
-            y: 10,
-        }
-    }
-
-    fn print_help() {
-        println!("Zappy Server Configuration\n");
-        println!("USAGE:");
-        println!("    zappy_server [OPTIONS]\n");
-        println!("OPTIONS:");
-        println!("    -p <port>       Port number to listen on [default: 4242]");
-        println!("    -c <clients>    Authorized clients per team, 1-{MAX_CLIENTS_PER_TEAM} [default: 10]");
-        println!("    -n <names>...   Team names, up to {MAX_TEAMS} (one or more) [default: GRAPHICAL]");
-        println!("    -f <frequency>  Server frequency (time unit) [default: 100]");
-        println!("    -x <x>          World width in tiles, min {MIN_DIMENSION} [default: 10]");
-        println!("    -y <y>          World height in tiles, min {MIN_DIMENSION} [default: 10]");
-        println!("    -h, --help      Print help information");
-    }
-
-    /// Read the value following a flag, or fail if it is missing.
-    fn value<'a>(args: &'a [String], i: &mut usize, flag: &str) -> Result<&'a str, String> {
-        *i += 1;
-        args.get(*i)
-            .map(String::as_str)
-            .ok_or_else(|| format!("missing value for {flag}"))
-    }
-
-    /// Parse CLI arguments into a `Config`.
-    ///
-    /// Returns `Err(message)` on any malformed argument so the caller can exit
-    /// with code 84 instead of panicking. `-h`/`--help` prints help and exits 0.
-    pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Self, String> {
-        let mut config = Config::default();
-        let args: Vec<String> = args.into_iter().collect();
-        let mut i = 0;
-
-        while i < args.len() {
-            match args[i].as_str() {
-                "-h" | "--help" => {
-                    Config::print_help();
-                    std::process::exit(0);
-                }
-                "-p" => {
-                    config.port = Self::value(&args, &mut i, "-p")?
-                        .parse()
-                        .map_err(|_| "invalid value for -p (port)".to_string())?;
-                }
-                "-c" => {
-                    config.clients = Self::value(&args, &mut i, "-c")?
-                        .parse()
-                        .map_err(|_| "invalid value for -c (clients)".to_string())?;
-                }
-                "-n" => {
-                    let mut names = Vec::new();
-                    while i + 1 < args.len() && !args[i + 1].starts_with('-') {
-                        i += 1;
-                        if args[i] == "GRAPHIC" {
-                            return Err("team name cannot be GRAPHIC".to_string());
-                        }
-                        if names.contains(&args[i]) {
-                            return Err(format!("duplicate team name: {}", args[i]));
-                        }
-                        names.push(args[i].clone());
-                    }
-                    if names.is_empty() {
-                        return Err("at least one team name must be provided after -n".to_string());
-                    }
-                    config.names = names;
-                }
-                "-f" => {
-                    config.frequency = Self::value(&args, &mut i, "-f")?
-                        .parse()
-                        .map_err(|_| "invalid value for -f (frequency)".to_string())?;
-                }
-                "-x" => {
-                    config.x = Self::value(&args, &mut i, "-x")?
-                        .parse()
-                        .map_err(|_| "invalid value for -x (width)".to_string())?;
-                }
-                "-y" => {
-                    config.y = Self::value(&args, &mut i, "-y")?
-                        .parse()
-                        .map_err(|_| "invalid value for -y (height)".to_string())?;
-                }
-                other => return Err(format!("unexpected argument: {other}")),
-            }
-            i += 1;
-        }
-        if config.x < MIN_DIMENSION || config.y < MIN_DIMENSION {
-            return Err(format!(
-                "world dimensions must be at least {MIN_DIMENSION}x{MIN_DIMENSION} (got {}x{})",
-                config.x, config.y
-            ));
-        }
-        if config.clients < 1 || config.clients > MAX_CLIENTS_PER_TEAM {
-            return Err(format!(
-                "clients per team must be between 1 and {MAX_CLIENTS_PER_TEAM} (got {})",
-                config.clients
-            ));
-        }
-        if config.names.len() > MAX_TEAMS {
-            return Err(format!(
-                "number of teams must be at most {MAX_TEAMS} (got {})",
-                config.names.len()
-            ));
-        }
-        Ok(config)
+    pub fn new() -> Self {
+        Config::parse()
     }
 }
