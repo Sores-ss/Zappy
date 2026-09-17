@@ -5,56 +5,79 @@
 // Server
 //
 
-use super::game::world::World;
 use super::config::Config;
-use super::net::reactor::Reactor;
-use std::io::Result;
+use super::map::Map;
+use super::client::{AIClient, Client};
+use std::io::{ Result, ErrorKind};
 use std::net::TcpListener;
 
 pub struct Server {
-    config: Config,
-    listener: Option<TcpListener>,
+    _config: Config,
+    _map: Map,
+    _listener: Option<TcpListener>,
+    _clients: Vec<AIClient>,
 }
 
 impl Server {
-    pub fn new(config: Config) -> Self {
-        Server {
-            config,
-            listener: None,
-        }
+    pub fn new() -> Self {
+        let mut serv: Server = Server {
+            _config: Config::new(),
+            _map: Map::new(10, 10),
+            _listener: None,
+            _clients: Vec::new(),
+        };
+        serv._map.define_size((serv._config.x, serv._config.y));
+        serv._config.names.push("GRAPHICAL".to_string());
+        serv
     }
 
-    pub fn start(&mut self) -> Result<()> {
-        println!("Server configuration:");
-        println!("Port: {}", self.config.port);
-        println!("Max Clients: {}", self.config.clients);
-        println!("Teams Names: {:?}", self.config.names);
-        println!("Time Unit: {}", self.config.frequency);
-        println!("World Size: {}x{}", self.config.x, self.config.y);
 
-        let listener = TcpListener::bind(format!("127.0.0.1:{}", self.config.port))?;
-        listener.set_nonblocking(true)?;
-        println!("Server started on port {}", listener.local_addr()?.port());
-        self.listener = Some(listener);
+    pub fn start(&mut self) -> Result<()> {
+        for (_config, _map) in [(&self._config, &self._map)] {
+            println!("Server configuration:");
+            println!("Port: {}", _config.port);
+            println!("Max Clients: {}", _config.clients);
+            println!("Teams Names: {:?}", _config.names);
+            println!("Time Unit: {} ms", _config.frequency);
+            println!("World Size: {}x{}", _config.x, _config.y);
+        }
+
+        let listener = TcpListener::bind(format!("127.0.0.1:{}", self._config.port))?;
+
+        self._listener = Some(listener);
+        println!("Server started on porta {}", self._listener.as_ref().unwrap().local_addr()?.port());
+        self._listener.as_ref().unwrap().set_nonblocking(true)?;
         Ok(())
     }
 
     pub fn run(&mut self) -> Result<()> {
-        let listener = match self.listener.take() {
-            Some(listener) => listener,
-            None => {
-                eprintln!("Server is not running. Please start the server first.");
-                return Ok(());
-            }
-        };
+        if self._listener.is_none() {
+            eprintln!("Server is not running. Please start the server first.");
+            return Ok(());
+        }
+        let listener = self._listener.as_ref().unwrap();
 
-        let map = World::new(
-            self.config.x,
-            self.config.y,
-            &self.config.names,
-            self.config.clients,
-        );
-        let mut reactor = Reactor::new(listener, self.config.frequency, map)?;
-        reactor.run()
+        loop {
+            match listener.accept() {
+                Ok((stream, addr)) => {
+                    println!("New client: {}", addr);
+                    stream.set_nonblocking(true).unwrap();
+                    let mut client: AIClient = AIClient::new(stream);
+                    client.write(format!("Successfully connected to the server at {}:{}", listener.local_addr()?.ip(), listener.local_addr()?.port()).as_str())?;
+                    self._clients.push(client);
+                }
+                Err(ref e) if e.kind() == ErrorKind::WouldBlock => {
+                    // No incoming connection, continue with other tasks
+                }
+                Err(e) => eprintln!("Accept error: {}", e),
+            }
+
+            self._clients.iter_mut().for_each(|client| {
+                match client.read() {
+                    Ok(string ) => println!("{}", string),
+                    Err(_) => println!("A client has disconnected"),
+                }
+            });
+        }
     }
 }
