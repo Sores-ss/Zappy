@@ -6,7 +6,6 @@
 //
 
 pub mod command;
-pub mod gui;
 pub mod map;
 pub mod player;
 pub mod team;
