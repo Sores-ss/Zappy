@@ -22,17 +22,14 @@ SRC_GUI = GUI/main.cpp \
           GUI/core/Network.cpp \
           GUI/core/App.cpp \
           GUI/game/GameState.cpp \
-          GUI/protocol/Commands.cpp \
-          GUI/protocol/Dispatcher.cpp \
-          GUI/render/Renderer2D.cpp \
-          GUI/render/Renderer3D.cpp \
+          GUI/protocol/Parser.cpp \
 
 OBJ_GUI = $(SRC_GUI:.cpp=.o)
 
 WARNINGS = -Wextra -Wall -Werror -std=c++20
 
 RAYLIB_CFLAGS = $(shell pkg-config --cflags raylib 2>/dev/null)
-RAYLIB_LIBS   = $(shell pkg-config --libs   raylib 2>/dev/null || echo "-lraylib -lGL -lm -lpthread -ldl -lrt -lX11")
+RAYLIB_LIBS   = $(shell pkg-config --libs   raylib 2>/dev/null || echo "-lraylib -lm")
 
 AI_INCLUDES     = -I./AI
 GUI_INCLUDES    = -I./GUI $(RAYLIB_CFLAGS)
