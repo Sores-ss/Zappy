@@ -21,7 +21,6 @@ public:
 
 private:
     void processMessages();
-    void update(float dt);
     void renderLoading() const;
     void renderGame() const;
 

@@ -32,7 +32,6 @@ void App::run()
     while (!WindowShouldClose()) {
         _net.update();
         processMessages();
-        update(GetFrameTime());
 
         BeginDrawing();
         ClearBackground({ 20, 20, 20, 255 });
@@ -44,30 +43,6 @@ void App::run()
     }
 }
 
-void App::update(float dt)
-{
-    // tiles per second the rendered position catches up to the logical one
-    const float speed = 6.0f;
-    float t = std::min(1.0f, speed * dt);
-
-    for (auto& [id, p] : _state.players) {
-        if (!p.spawned) {
-            p.renderX = (float)p.x;
-            p.renderY = (float)p.y;
-            p.spawned = true;
-            continue;
-        }
-        // a single Forward only moves one tile, so a bigger gap means a
-        // world wrap-around: snap instead of sliding across the whole map
-        if (std::abs((float)p.x - p.renderX) > 1.5f)
-            p.renderX = (float)p.x;
-        if (std::abs((float)p.y - p.renderY) > 1.5f)
-            p.renderY = (float)p.y;
-        p.renderX += ((float)p.x - p.renderX) * t;
-        p.renderY += ((float)p.y - p.renderY) * t;
-    }
-}
-
 void App::processMessages()
 {
     std::optional<std::string> line;
@@ -75,10 +50,6 @@ void App::processMessages()
         if (_phase == Phase::Connecting) {
             if (*line == "WELCOME") {
                 _net.send("GRAPHIC\n");
-                _net.send("msz\n");
-                _net.send("mct\n");
-                _net.send("tna\n");
-                _net.send("sgt\n");
                 _phase = Phase::Running;
             }
         } else {
@@ -126,28 +97,17 @@ void App::renderGame() const
 
     // players
     for (auto& [id, p] : _state.players) {
-        Vector2 center = {
-            ox + (p.renderX + 0.5f) * tileSize,
-            oy + (p.renderY + 0.5f) * tileSize
-        };
+        float px = ox + (float)p.x * tileSize + tileSize * 0.5f;
+        float py = oy + (float)p.y * tileSize + tileSize * 0.5f;
         int tidx = 0;
         for (int i = 0; i < (int)_state.teams.size(); i++)
             if (_state.teams[i] == p.team) { tidx = i; break; }
-        Color c = TEAM_COLORS[tidx % 8];
-        float radius = tileSize * 0.30f;
-        // triangle tip points toward the facing direction (1=N 2=E 3=S 4=W)
-        float rot = (float)(p.orientation - 2) * 90.0f;
-
-        if (p.incanting)
-            DrawCircle((int)center.x, (int)center.y, radius * 1.5f, { 255, 255, 0, 110 });
-        DrawPoly(center, 3, radius, rot, c);
-        DrawPolyLines(center, 3, radius, rot, BLACK);
-
+        Color c = p.incanting ? WHITE : TEAM_COLORS[tidx % 8];
+        DrawCircle((int)px, (int)py, tileSize * 0.25f, c);
         if (tileSize >= 16) {
             std::string lv = std::to_string(p.level);
             int tw = MeasureText(lv.c_str(), 10);
-            DrawText(lv.c_str(), (int)(center.x - (float)tw / 2.0f),
-                     (int)(center.y - radius - 12.0f), 10, WHITE);
+            DrawText(lv.c_str(), (int)(px - (float)tw / 2.0f), (int)(py - 5.0f), 10, BLACK);
         }
     }
 
