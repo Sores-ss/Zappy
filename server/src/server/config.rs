@@ -27,95 +27,73 @@ impl Config {
             port: 4242,
             clients: 10,
             names: vec!["GRAPHICAL".to_string()],
-            frequency: 100,
+            frequency: 1000,
             x: 10,
             y: 10,
         }
     }
 
     fn print_help() {
-        println!("Zappy Server Configuration\n");
+        println!("Zappy Server Configuration");
+        println!();
         println!("USAGE:");
-        println!("    zappy_server [OPTIONS]\n");
+        println!("    zappy_server [OPTIONS]");
+        println!();
         println!("OPTIONS:");
         println!("    -p <port>       Port number to listen on [default: 4242]");
         println!("    -c <clients>    Number of authorized clients per team [default: 10]");
         println!("    -n <names>...   Names of the teams (one or more) [default: GRAPHICAL]");
-        println!("    -f <frequency>  Server frequency (time unit) [default: 100]");
+        println!("    -f <frequency>  Server frequency (time unit in ms) [default: 1000]");
         println!("    -x <x>          World width in tiles [default: 10]");
         println!("    -y <y>          World height in tiles [default: 10]");
         println!("    -h, --help      Print help information");
     }
 
-    /// Read the value following a flag, or fail if it is missing.
-    fn value<'a>(args: &'a [String], i: &mut usize, flag: &str) -> Result<&'a str, String> {
-        *i += 1;
-        args.get(*i)
-            .map(String::as_str)
-            .ok_or_else(|| format!("missing value for {flag}"))
-    }
-
-    /// Parse CLI arguments into a `Config`.
-    ///
-    /// Returns `Err(message)` on any malformed argument so the caller can exit
-    /// with code 84 instead of panicking. `-h`/`--help` prints help and exits 0.
-    pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Self, String> {
+    pub fn new() -> Self {
         let mut config = Config::default();
-        let args: Vec<String> = args.into_iter().collect();
+        let args: Vec<String> = std::env::args().skip(1).collect();
         let mut i = 0;
 
         while i < args.len() {
             match args[i].as_str() {
-                "-h" | "--help" => {
+                "-h" => {
                     Config::print_help();
                     std::process::exit(0);
                 }
                 "-p" => {
-                    config.port = Self::value(&args, &mut i, "-p")?
-                        .parse()
-                        .map_err(|_| "invalid value for -p (port)".to_string())?;
+                    i += 1;
+                    config.port = args[i].parse().expect("invalid value for port");
                 }
                 "-c" => {
-                    config.clients = Self::value(&args, &mut i, "-c")?
-                        .parse()
-                        .map_err(|_| "invalid value for -c (clients)".to_string())?;
+                    i += 1;
+                    config.clients = args[i].parse().expect("invalid value for clients");
                 }
                 "-n" => {
                     let mut names = Vec::new();
                     while i + 1 < args.len() && !args[i + 1].starts_with('-') {
                         i += 1;
-                        if args[i] == "GRAPHIC" {
-                            return Err("team name cannot be GRAPHIC".to_string());
-                        }
-                        if names.contains(&args[i]) {
-                            return Err(format!("duplicate team name: {}", args[i]));
-                        }
                         names.push(args[i].clone());
                     }
-                    if names.is_empty() {
-                        return Err("at least one team name must be provided after -n".to_string());
+                    if !names.is_empty() {
+                        config.names = names;
                     }
-                    config.names = names;
                 }
                 "-f" => {
-                    config.frequency = Self::value(&args, &mut i, "-f")?
-                        .parse()
-                        .map_err(|_| "invalid value for -f (frequency)".to_string())?;
+                    i += 1;
+                    config.frequency = args[i].parse().expect("invalid value for frequency");
                 }
                 "-x" => {
-                    config.x = Self::value(&args, &mut i, "-x")?
-                        .parse()
-                        .map_err(|_| "invalid value for -x (width)".to_string())?;
+                    i += 1;
+                    config.x = args[i].parse().expect("invalid value for x");
                 }
                 "-y" => {
-                    config.y = Self::value(&args, &mut i, "-y")?
-                        .parse()
-                        .map_err(|_| "invalid value for -y (height)".to_string())?;
+                    i += 1;
+                    config.y = args[i].parse().expect("invalid value for y");
                 }
-                other => return Err(format!("unexpected argument: {other}")),
+                other => panic!("unexpected argument: {other}"),
             }
             i += 1;
         }
-        Ok(config)
+        config
     }
 }
