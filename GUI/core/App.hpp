@@ -9,10 +9,7 @@
 #include "Args.hpp"
 #include "Network.hpp"
 #include "../game/GameState.hpp"
-#include "../protocol/Dispatcher.hpp"
-#include "../render/IRenderer.hpp"
-#include <memory>
-#include <raylib.h>
+#include "../protocol/Parser.hpp"
 
 enum class Phase { Connecting, Running };
 
@@ -24,19 +21,11 @@ public:
 
 private:
     void processMessages();
-    void update(float dt);
-    void handleInput();
-    float uiScale() const;
-    float panelWidth() const;
-    Rectangle mapArea() const;
     void renderLoading() const;
-    void renderPanel() const;
+    void renderGame() const;
 
     Network _net;
     GameState _state;
-    CommandDispatcher _dispatcher;
-    std::unique_ptr<IRenderer> _renderer;
+    Parser _parser;
     Phase _phase = Phase::Connecting;
-    int _selected = -1;
-    bool _mode3D = false;
 };
