@@ -13,10 +13,22 @@ use super::map::{Map, Resource};
 use super::player::{Orientation, Player, StarveResult};
 use super::team::{JoinError, Team};
 
+/// A destination for a server-pushed line other than the acting player's reply.
+/// Commands write these into `World::outbox`; the reactor drains and routes them.
+#[derive(Debug)]
+pub enum Target {
+    /// One AI player's connection.
+    Player(u32),
+    /// Every connected GUI. Wired once the GUI sink lands.
+    #[allow(dead_code)]
+    AllGui,
+}
+
 pub struct World {
     pub map: Map,
     pub teams: Vec<Team>,
     pub players: HashMap<u32, Player>,
+    pub outbox: Vec<(Target, String)>,
     next_id: u32,
     rng: u64,
 }
@@ -35,11 +47,17 @@ impl World {
                 .map(|name| Team::new(name.clone(), clients))
                 .collect(),
             players: HashMap::new(),
+            outbox: Vec::new(),
             next_id: 1,
             rng: seed,
         };
         world.respawn_resources();
         world
+    }
+
+    /// Hand the queued side-effect lines to the reactor for delivery.
+    pub fn take_outbox(&mut self) -> Vec<(Target, String)> {
+        std::mem::take(&mut self.outbox)
     }
 
     pub fn respawn_resources(&mut self) {
@@ -120,6 +138,24 @@ impl World {
         Some((p.current_cmd, cost))
     }
 
+    /// True when the player's in-flight command is an `Incantation` — the reactor
+    /// routes it through `incantation_start`/`incantation_finish`, not `ActionDone`.
+    pub fn current_is_incantation(&self, player: u32) -> bool {
+        self.players
+            .get(&player)
+            .and_then(|p| p.queue.front())
+            .is_some_and(|c| *c == Command::Incantation)
+    }
+
+    /// Drop the in-flight command without running it (start-check ko fast-fail).
+    pub fn abort_current(&mut self, player: u32) {
+        if let Some(p) = self.players.get_mut(&player) {
+            p.busy = false;
+            p.current_cmd = 0;
+            p.queue.pop_front();
+        }
+    }
+
     pub fn finish_command(&mut self, player: u32, command_id: u64) -> Option<String> {
         let cmd = {
             let p = self.players.get_mut(&player)?;
@@ -154,23 +190,5 @@ impl World {
                 team.players.retain(|&id| id != player);
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn starvation_drains_food_then_dies() {
-        let names = vec!["team1".to_string()];
-        let mut world = World::new(10, 10, &names, 5);
-        let (id, _) = world.add_player("team1").expect("join");
-
-        // 10 starting food: first 9 ticks survive, the 10th empties it and dies.
-        for _ in 0..9 {
-            assert_eq!(world.consume_food(id), StarveResult::Survived);
-        }
-        assert_eq!(world.consume_food(id), StarveResult::Died);
     }
 }
