@@ -22,14 +22,17 @@ SRC_GUI = GUI/main.cpp \
           GUI/core/Network.cpp \
           GUI/core/App.cpp \
           GUI/game/GameState.cpp \
-          GUI/protocol/Parser.cpp \
+          GUI/protocol/Commands.cpp \
+          GUI/protocol/Dispatcher.cpp \
+          GUI/render/Renderer2D.cpp \
+          GUI/render/Renderer3D.cpp \
 
 OBJ_GUI = $(SRC_GUI:.cpp=.o)
 
 WARNINGS = -Wextra -Wall -Werror -std=c++20
 
 RAYLIB_CFLAGS = $(shell pkg-config --cflags raylib 2>/dev/null)
-RAYLIB_LIBS   = $(shell pkg-config --libs   raylib 2>/dev/null || echo "-lraylib -lm")
+RAYLIB_LIBS   = $(shell pkg-config --libs   raylib 2>/dev/null || echo "-lraylib -lGL -lm -lpthread -ldl -lrt -lX11")
 
 AI_INCLUDES     = -I./AI
 GUI_INCLUDES    = -I./GUI $(RAYLIB_CFLAGS)
@@ -69,6 +72,23 @@ clean:
 fclean: clean
 	rm -f $(SERV_BIN) $(AI_BIN) $(GUI_BIN)
 
+tests_run:
+	$(MAKE) $(MAKEFLAGS) tests_ai
+	$(MAKE) $(MAKEFLAGS) tests_server
+	$(MAKE) $(MAKEFLAGS) tests_gui
+
+tests_ai:
+	@if [ -d AI/tests ]; then cd AI && python3 -m pytest tests/ -v; else echo "No AI tests yet"; fi
+
+tests_server:
+	cargo test --manifest-path $(SERV_MANIFEST)
+
+tests_gui:
+	@if [ -d GUI/tests ]; then \
+		g++ -std=c++20 -I./GUI GUI/tests/test_parser.cpp GUI/game/GameState.cpp GUI/protocol/Commands.cpp GUI/protocol/Dispatcher.cpp -o /tmp/test_zappy_gui && /tmp/test_zappy_gui; \
+	else echo "No GUI tests yet"; fi
+
 re: fclean all
 
-.PHONY: all fast zappy_server zappy_ai zappy_gui debug clean fclean re
+.PHONY: all fast zappy_server zappy_ai zappy_gui debug clean fclean re \
+        tests_run tests_ai tests_server tests_gui
