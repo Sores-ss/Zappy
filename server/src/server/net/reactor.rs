@@ -184,7 +184,7 @@ impl Reactor {
     }
 
     fn handle_handshake(&mut self, fd: i32, line: String) {
-        let (width, height) = (self.world.map.width, self.world.map.height);
+        let (width, height) = self.world.w_h;
 
         if line == "GRAPHIC" {
             if let Some(conn) = self.conns.get_mut(&fd) {

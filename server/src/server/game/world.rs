@@ -9,12 +9,11 @@ use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::command::{Command, EnqueueError, MAX_QUEUED};
-use super::map::Map;
 use super::player::{Orientation, Player};
 use super::team::{JoinError, Team};
 
 pub struct World {
-    pub map: Map,
+    pub w_h: (usize, usize),
     pub teams: Vec<Team>,
     pub players: HashMap<u32, Player>,
     next_id: u32,
@@ -29,7 +28,7 @@ impl World {
             .unwrap_or(0x9e37_79b9_7f4a_7c15)
             | 1;
         World {
-            map: Map::new(width, height),
+            w_h: (width, height),
             teams: names
                 .iter()
                 .map(|name| Team::new(name.clone(), clients))
@@ -62,9 +61,9 @@ impl World {
             return Err(JoinError::TeamFull);
         }
 
-        let rx = self.next_rand() as isize;
-        let ry = self.next_rand() as isize;
-        let (x, y) = self.map.wrap(rx, ry);
+        let (width, height) = self.w_h;
+        let x = (self.next_rand() as usize) % width;
+        let y = (self.next_rand() as usize) % height;
         let orientation = match self.next_rand() % 4 {
             0 => Orientation::North,
             1 => Orientation::East,
@@ -138,5 +137,34 @@ impl World {
                 team.players.retain(|&id| id != player);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn world() -> World {
+        World::new(10, 10, &["team1".to_string()], 2)
+    }
+
+    #[test]
+    fn remove_player_drops_drone_but_keeps_slot_consumed() {
+        let mut w = world();
+        let (id, remaining) = w.add_player("team1").unwrap();
+        assert_eq!(remaining, 1); // 2 slots, 1 now consumed
+
+        w.remove_player(id);
+
+        assert!(!w.players.contains_key(&id));
+        assert!(w.teams[0].players.is_empty());
+        // slot stays consumed: a disconnect is a death, not a freed egg.
+        assert_eq!(w.teams[0].remaining(), 1);
+    }
+
+    #[test]
+    fn remove_unknown_player_is_a_noop() {
+        let mut w = world();
+        w.remove_player(999); // must not panic
     }
 }
