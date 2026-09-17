@@ -7,7 +7,12 @@
 
 from __future__ import annotations
 import re
+from dataclasses import dataclass
 from enum import Enum, auto
+
+# Inventory lines always have "food N" (resource followed by a quantity).
+# Look lines may contain "food" as a bare item — no number follows it.
+_INVENTORY_RE = re.compile(r'\bfood\s+\d')
 
 RESOURCES = ("food", "linemate", "deraumere", "sibur", "mendiane", "phiras", "thystame")
 
@@ -19,30 +24,36 @@ class ServerMsg(Enum):
     ELEVATION_UNDERWAY = auto()
 
 
+@dataclass(frozen=True)
 class LookResponse:
-    def __init__(self, tiles):
-        self.tiles = tiles
+    tiles: tuple[tuple[str, ...], ...]
 
-    def current_tile(self):
+    def current_tile(self) -> tuple[str, ...]:
         return self.tiles[0] if self.tiles else ()
 
+
+@dataclass(frozen=True)
 class InventoryResponse:
-    def __init__(self, resources):
-        self.resources = resources
+    resources: dict[str, int]
 
+
+@dataclass(frozen=True)
 class MessageEvent:
-    def __init__(self, direction, text):
-        self.direction = direction
-        self.text = text
+    direction: int
+    text: str
 
+
+@dataclass(frozen=True)
 class EjectEvent:
-    def __init__(self, direction):
-        self.direction = direction
+    direction: int
 
+
+@dataclass(frozen=True)
 class CurrentLevelEvent:
-    def __init__(self, level):
-        self.level = level
+    level: int
 
+
+# Lines that arrive spontaneously, outside the request/response flow.
 _UNSOLICITED_PREFIXES = ("message ", "eject: ", "Current level: ", "dead")
 
 
@@ -50,9 +61,8 @@ def is_unsolicited(line: str) -> bool:
     return any(line.startswith(p) for p in _UNSOLICITED_PREFIXES)
 
 
-def parse_response(line: str):
-    line = line.strip()
-
+def parse_response(line: str) -> ServerMsg | LookResponse | InventoryResponse | int | str:
+    """Parse a direct response to a pending command."""
     match line:
         case "ok":
             return ServerMsg.OK
@@ -65,7 +75,7 @@ def parse_response(line: str):
 
     if line.startswith("[") and line.endswith("]"):
         inner = line[1:-1]
-        return _parse_inventory(inner) if re.search(r'\bfood\s+\d', inner) else _parse_look(inner)
+        return _parse_inventory(inner) if _INVENTORY_RE.search(inner) else _parse_look(inner)
 
     try:
         return int(line)
@@ -73,10 +83,11 @@ def parse_response(line: str):
         return line
 
 
-def parse_unsolicited(line: str):
+def parse_unsolicited(line: str) -> MessageEvent | EjectEvent | CurrentLevelEvent | ServerMsg:
+    """Parse a spontaneous server notification."""
     if line.startswith("message "):
         rest = line[len("message "):]
-        k_str, _, text = rest.partition(", ")
+        k_str, _, text = rest.partition(",")
         return MessageEvent(int(k_str), text)
 
     if line.startswith("eject: "):
@@ -92,12 +103,15 @@ def parse_unsolicited(line: str):
 
 
 def _parse_look(inner: str) -> LookResponse:
-    tiles = tuple(tuple(item for item in tile_str.strip().split() if item) for tile_str in inner.split(","))
+    tiles = tuple(
+        tuple(item for item in tile_str.strip().split() if item)
+        for tile_str in inner.split(",")
+    )
     return LookResponse(tiles)
 
 
 def _parse_inventory(inner: str) -> InventoryResponse:
-    resources = {}
+    resources: dict[str, int] = {}
     for part in inner.split(","):
         part = part.strip()
         if not part:
