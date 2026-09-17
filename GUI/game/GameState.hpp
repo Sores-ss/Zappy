@@ -36,39 +36,12 @@ struct Egg {
     int x{}, y{};
 };
 
-struct Incantation {
-    int x{}, y{};
-    int level{};
-};
-
-struct IncantationResult {
-    int x{}, y{};
-    bool success{};
-    float timer{}; // render-only: seconds left to show the success/fail flash
-};
-
-struct Broadcast {
-    int playerId{};
-    std::string text;
-    float timer{}; // render-only: seconds left to show the sound wave + message
-};
-
-struct EjectFx {
-    int playerId{};
-    float timer{}; // render-only: seconds left to show the ejection burst
-};
-
 struct GameState {
     int width{}, height{};
     std::vector<std::vector<Tile>> map;
     std::map<int, Player> players;
     std::map<int, Egg> eggs;
     std::vector<std::string> teams;
-    std::vector<std::string> serverMessages;
-    std::vector<Incantation> incantations;
-    std::vector<IncantationResult> incantResults;
-    std::vector<Broadcast> broadcasts;
-    std::vector<EjectFx> ejects;
     int timeUnit{ 100 };
     bool over{};
     std::string winner;

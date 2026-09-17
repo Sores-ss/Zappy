@@ -67,24 +67,19 @@ void Parser::parse(const std::string& line)
             _s.players[n].inventory = r;
 
     } else if (tag == "pic") {
-        // start of an incantation on a tile + mark participating players
+        // mark participating players as incanting
         std::istringstream ss(line.substr(4));
         int x, y, l;
         ss >> x >> y >> l;
-        _s.incantations.push_back({ x, y, l });
         std::string tok;
         while (ss >> tok)
             if (!tok.empty() && tok[0] == '#' && _s.players.count(parseId(tok)))
                 _s.players[parseId(tok)].incanting = true;
 
     } else if (tag == "pie") {
-        // end of an incantation: remove it, flash the result, unmark players
-        int x, y, r = 0;
+        // unmark incanting players on that tile
+        int x, y, r;
         sscanf(line.c_str(), "pie %d %d %d", &x, &y, &r);
-        std::erase_if(_s.incantations, [x, y](const Incantation& i) {
-            return i.x == x && i.y == y;
-        });
-        _s.incantResults.push_back({ x, y, r != 0, 2.5f });
         for (auto& [id, p] : _s.players)
             if (p.x == x && p.y == y)
                 p.incanting = false;
@@ -134,26 +129,6 @@ void Parser::parse(const std::string& line)
     } else if (tag == "seg") {
         _s.over = true;
         if (line.size() > 4) _s.winner = line.substr(4);
-
-    } else if (tag == "smg") {
-        if (line.size() > 4) {
-            _s.serverMessages.push_back(line.substr(4));
-            if (_s.serverMessages.size() > 50)
-                _s.serverMessages.erase(_s.serverMessages.begin());
-        }
-
-    } else if (tag == "pbc") {
-        int n = 0, off = 0;
-        sscanf(line.c_str(), "pbc #%d%n", &n, &off);
-        std::string msg;
-        if (off > 0 && (size_t)(off + 1) < line.size())
-            msg = line.substr(off + 1);
-        _s.broadcasts.push_back({ n, msg, 3.0f });
-
-    } else if (tag == "pex") {
-        int n = 0;
-        sscanf(line.c_str(), "pex #%d", &n);
-        _s.ejects.push_back({ n, 1.0f });
     }
-    // pfk, suc, sbp handled silently
+    // pex, pbc, pfk, smg, suc, sbp handled silently
 }
